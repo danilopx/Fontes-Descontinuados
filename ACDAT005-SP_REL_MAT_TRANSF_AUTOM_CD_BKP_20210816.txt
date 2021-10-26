@@ -1,0 +1,91 @@
+USE [DADOSPRO]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_REL_MAT_TRANSF_AUTOM_CD]    Script Date: 16/08/2021 12:02:27 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/******************************************************************************
+* PROCEDURE : SP_REL_MAT_TRANSF_AUTOM_CD									  *
+* OBJETIVO  : Relatorio com base nos dados da transferencia automatica 		  *
+* AUTOR     : Carlos Torres                                                   *
+* DATA      : 18/05/2020                                                      *
+* OBSERVACAO: uso principal na rotina ACDTA005.PRW              		      * 
+*             o relatório não deve apresentar os estornos das transferencias  *
+*             os dados serão gerados pelas rotinas MT440GR.PRW e ESTMI001.PRW *
+*---------------------------------ALTERACOES----------------------------------*
+* DATA       AUTOR       OBJETIVO                                             *
+*----------- ----------- -----------------------------------------------------*
+*                                                                             *
+******************************************************************************/
+-- EXEC SP_REL_MAT_TRANSF_AUTOM_CD '000000065      ','000000065      ','20200501', '1'
+ALTER PROCEDURE [dbo].[SP_REL_MAT_TRANSF_AUTOM_CD]
+		@CPRDINI VARCHAR(15)
+		,@CPRDFIM VARCHAR(15)
+		,@CEMISSAO VARCHAR(10)
+		,@CTIPO VARCHAR(1)
+AS
+BEGIN
+	IF @CTIPO='1'
+	BEGIN
+		SELECT 
+			D3_COD AS PRODUTO
+			,RTRIM(B1_DESC) AS DESCRICAO_PRO
+			,D3_LOCAL AS ARMAZEM
+			,D3_LOCALIZ AS END_ORIGEM
+			,(SELECT MAX(D3_LOCALIZ) FROM SD3030 AUX WHERE AUX.D3_FILIAL=SD3.D3_FILIAL AND AUX.D3_TM ='499' AND AUX.D3_NUMSEQ =SD3.D3_NUMSEQ AND AUX.D_E_L_E_T_ ='') AS END_DESTINO
+			,D3_QUANT AS QUANTIDADE
+		INTO #TEMP_CT_SD3030_TF
+		FROM SD3030 SD3 WITH(NOLOCK)
+		INNER JOIN SB1030 SB1 WITH(NOLOCK)
+		ON B1_FILIAL=D3_FILIAL 
+		AND B1_COD=D3_COD
+		AND SB1.D_E_L_E_T_ =''
+		WHERE D3_FILIAL='02' 
+		AND SD3.D_E_L_E_T_ ='' 
+		AND D3_EMISSAO>=@CEMISSAO 
+		AND D3_COD >= @CPRDINI AND D3_COD<=@CPRDFIM
+		AND D3_LOCAL ='21'
+		AND D3_LOCALIZ!='EXP'
+		AND D3_ESTORNO =''
+		AND LEFT(D3_DOC,2)='TF'
+		AND D3_TM ='999'
+		ORDER BY D3_COD 
+
+		SELECT 
+			PRODUTO ,DESCRICAO_PRO,ARMAZEM,END_ORIGEM,END_DESTINO,SUM(QUANTIDADE) AS QUANTIDADE
+		FROM #TEMP_CT_SD3030_TF AUX WITH(NOLOCK)
+		GROUP BY PRODUTO ,DESCRICAO_PRO,ARMAZEM,END_ORIGEM,END_DESTINO
+	END
+
+	IF @CTIPO='2'
+	BEGIN
+		SELECT 
+			D3_DOC AS DOC_TRANSFERE
+			,D3_COD AS PRODUTO
+			,RTRIM(B1_DESC) AS DESCRICAO_PRO
+			,D3_LOCAL AS ARMAZEM
+			,D3_LOCALIZ AS END_ORIGEM
+			,(SELECT MAX(D3_LOCALIZ) FROM SD3030 AUX WHERE AUX.D3_FILIAL=SD3.D3_FILIAL AND AUX.D3_TM ='499' AND AUX.D3_NUMSEQ =SD3.D3_NUMSEQ AND AUX.D_E_L_E_T_ ='') AS END_DESTINO
+			,D3_QUANT AS QUANTIDADE
+			,LEFT(D3_SC9PED,6) AS PEDIDO_VENDA
+			,CONVERT(VARCHAR(10),CONVERT(DATETIME,D3_EMISSAO ) ,103) AS DATA_TRANSFERE
+			,(SELECT MAX(DB_HRINI) FROM SDB030 AUX1 WHERE AUX1.DB_FILIAL=SD3.D3_FILIAL AND AUX1.DB_PRODUTO=SD3.D3_COD AND AUX1.DB_LOCAL=SD3.D3_LOCAL AND AUX1.DB_NUMSEQ =SD3.D3_NUMSEQ AND AUX1.DB_TM ='499' AND AUX1.D_E_L_E_T_ ='') AS HORA_MOVTO
+		FROM SD3030 SD3 WITH(NOLOCK)
+		INNER JOIN SB1030 SB1 WITH(NOLOCK)
+		ON B1_FILIAL=D3_FILIAL 
+		AND B1_COD=D3_COD
+		AND SB1.D_E_L_E_T_ =''
+		WHERE D3_FILIAL='02' 
+		AND SD3.D_E_L_E_T_ ='' 
+		AND D3_EMISSAO>=@CEMISSAO 
+		AND D3_COD >= @CPRDINI AND D3_COD<=@CPRDFIM
+		AND D3_LOCAL ='21'
+		AND D3_ESTORNO =''
+		AND LEFT(D3_DOC,2)='TF'
+		AND D3_TM ='999'
+		ORDER BY D3_EMISSAO, D3_COD 
+	END
+
+END

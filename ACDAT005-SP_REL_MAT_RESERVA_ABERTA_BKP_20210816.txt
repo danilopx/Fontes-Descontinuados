@@ -1,0 +1,60 @@
+USE [DADOSPRO]
+GO
+/****** Object:  StoredProcedure [dbo].[SP_REL_MAT_RESERVA_ABERTA]    Script Date: 16/08/2021 12:04:43 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+/******************************************************************************
+* PROCEDURE : SP_REL_MAT_RESERVA_ABERTA  									  *
+* OBJETIVO  : Relatorio com base nos dados da reserva manual feita em MATA430 *
+* AUTOR     : Carlos Torres                                                   *
+* DATA      : 18/05/2020                                                      *
+* OBSERVACAO: uso principal na rotina ACDTA005.PRW              		      * 
+*---------------------------------ALTERACOES----------------------------------*
+* DATA       AUTOR       OBJETIVO                                             *
+*----------- ----------- -----------------------------------------------------*
+*                                                                             *
+******************************************************************************/
+-- EXEC SP_REL_MAT_RESERVA_ABERTA 
+ALTER PROCEDURE [dbo].[SP_REL_MAT_RESERVA_ABERTA]
+
+AS
+BEGIN
+
+
+	SELECT 
+		C0_NUM AS NUMERO_RESERVA
+		,CONVERT(VARCHAR(10),CONVERT(DATETIME,C0_EMISSAO),103) AS DT_EMISSAO
+		,(CASE 
+			WHEN C0_TIPO = 'LB' THEN 'RESERVA VINCULADA A PEDIDO' 
+			WHEN C0_TIPO = 'VD' THEN 'RESERVA DE VENDEDOR' 
+			WHEN C0_TIPO = 'PD' THEN 'RESERVA VINCULADA AO PEDIDO' 
+			ELSE 'TIPO NAO IDENTIFICADO'
+		END	) AS TIPO_RESERVA
+		,(CASE
+			WHEN RTRIM(C0_SOLICIT) = 'SCHDL' THEN 'RESERVA AUTOMATICA'
+			ELSE C0_SOLICIT
+		END ) AS SOLICITANTE
+		,C0_DOCRES AS PEDIDO_VENDA
+		,C0_PRODUTO AS PRODUTO
+		,B1_DESC AS DESCRICAO_PRO
+		,C0_LOCAL AS ARMAZEM
+		,C0_LOCALIZ AS ENDERECO
+		,C0_QUANT AS QUANTIDADE
+		,CONVERT(VARCHAR(10),CONVERT(DATETIME,C0_VALIDA),103) AS DT_VALIDADE
+	FROM SC0030 SC0 WITH(NOLOCK)
+	INNER JOIN SB1030 SB1 WITH(NOLOCK)
+	ON B1_FILIAL=C0_FILIAL 
+	AND B1_COD=C0_PRODUTO
+	AND SB1.D_E_L_E_T_ =''
+	WHERE SC0.C0_FILIAL='02'
+	AND SC0.D_E_L_E_T_ ='' 
+	AND NOT (C0_QUANT=0 AND C0_QTDELIM=0)
+	AND C0_EMISSAO>='20200101'
+	AND B1_ITEMCC='TAIFF'
+	ORDER BY C0_EMISSAO
+
+END
+
